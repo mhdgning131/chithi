@@ -40,11 +40,9 @@ export default (env: { WEBPACK_SERVE?: boolean }): Configuration => {
                 autoCodeSplitting: true,
             }),
 
-            // Only extract CSS in production
-            !isDev &&
-                new MiniCssExtractPlugin({
-                    filename: '[name].[contenthash].css',
-                }),
+            new MiniCssExtractPlugin({
+                filename: '[name].[contenthash].css',
+            }),
         ].filter(Boolean) as Configuration['plugins'],
 
         module: {
@@ -60,7 +58,7 @@ export default (env: { WEBPACK_SERVE?: boolean }): Configuration => {
                 {
                     test: /\.css$/,
                     use: [
-                        isDev ? 'style-loader' : MiniCssExtractPlugin.loader,
+                        MiniCssExtractPlugin.loader,
                         'css-loader',
                         'postcss-loader',
                     ],

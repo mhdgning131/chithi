@@ -3,17 +3,12 @@
         [
             "@babel/preset-env",
             {
-                "targets": {
-                    "chrome": "120",
-                    "firefox": "115",
-                    "safari": "17",
-                    "edge": "120"
-                },
-                "modules": "amd",
+                "targets": "defaults",
                 "bugfixes": true
             }
         ],
         ["@babel/preset-react", { "runtime": "automatic" }],
         "@babel/preset-typescript"
-    ]
+    ],
+    "plugins": ["babel-plugin-react-compiler"]
 }
