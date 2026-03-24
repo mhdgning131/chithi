@@ -15,14 +15,11 @@ dependencies = [
     "pyzipper>=0.3.6",
     # Progress bars
     "tqdm>=4.67.0",
-    # Terminal QR-code rendering
-    "segno>=1.5.1",
-    "pillow>=12.1.1",
     # Env handling
     "pydantic-settings>=2.12.0",
     # Console Lib
     "rich>=14.3.2",
-    "rich-pixels>=3.0.1",
+    "qrcode>=8.2",
 ]
 
 
@@ -31,10 +28,8 @@ build = ["nuitka>=2.8.9", "zstandard>=0.25.0"]
 dev = ["poethepoet>=0.39.0"]
 
 [tool.poe.tasks]
-nuitka-windows = "nuitka --standalone --onefile --lto=yes --python-flag=-m --python-flag=-OO --disable-bytecode-cache --assume-yes-for-downloads --windows-icon-from-ico=./assets/logo.ico ./app"
-nuitka-linux = "nuitka --standalone --onefile --clang --lto=yes --python-flag=-m --python-flag=-OO --disable-bytecode-cache --assume-yes-for-downloads ./app"
-nuitka-debug = "nuitka --standalone --onefile --clang --lto=yes --debug --python-flag=-m --python-flag=-OO --disable-bytecode-cache --assume-yes-for-downloads ./app"
-
+nuitka-build = "python build.py"
+nuitka-debug = "python build.py debug"
 
 [tool.setuptools]
 packages = ["app"]
