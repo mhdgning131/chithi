@@ -1,6 +1,6 @@
 import { Api } from '#consts/backend';
 import { browser } from '$app/environment';
-import { login as loginRemote } from '$lib/remote/auth.remote';
+import { login as loginRemote, logout as logoutRemote } from '$lib/remote/auth.remote';
 import { user_store } from '$lib/store/user.svelte';
 import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 
@@ -11,13 +11,16 @@ const resolveFetch = (fetch?: typeof globalThis.fetch) => fetch ?? globalThis.fe
 const fetchUser = async ({ fetch }: { fetch?: typeof globalThis.fetch }) => {
 	if (browser && user_store.is_authenticated === false) return null;
 
-	const runtimeFetch = resolveFetch(fetch);
+	let runtimeFetch = resolveFetch(fetch);
+
 	const res = await runtimeFetch(Api.USER, {
 		credentials: 'include'
 	});
 
-	if (!res.ok || res.status === 401) {
+	const AUTH_ERRORS = new Set([401, 403]);
+	if (!res.ok || AUTH_ERRORS.has(res.status)) {
 		if (browser) user_store.unauthenticate();
+		await logoutRemote();
 		return null;
 	}
 

@@ -1,15 +1,16 @@
 <script lang="ts">
-	import { LoaderCircle } from 'lucide-svelte';
+	import { LoaderCircle } from '@lucide/svelte';
 	import { fade } from 'svelte/transition';
 	import { page } from '$app/state';
 	import { useConfigQuery } from '#queries/config';
 	import { formatBytes, type ByteUnit } from '#functions/bytes';
 	import { type TimeUnit } from '#functions/times';
 	import ConfigLoadingSkeleton from './config_loading_skeleton.svelte';
-	import StorageFilesCard from './storage_file_card.svelte';
-	import RetentionPolicyCard from './retention_policy_card.svelte';
-	import FileSecurityCard from './file_security_card.svelte';
-	import SiteDescriptionCard from './site_description_card.svelte';
+
+	const { default: StorageFilesCard } = await import('./storage_file_card.svelte');
+	const { default: RetentionPolicyCard } = await import('./retention_policy_card.svelte');
+	const { default: FileSecurityCard } = await import('./file_security_card.svelte');
+	const { default: SiteDescriptionCard } = await import('./site_description_card.svelte');
 
 	const { config: configQuery, update_config } = useConfigQuery();
 

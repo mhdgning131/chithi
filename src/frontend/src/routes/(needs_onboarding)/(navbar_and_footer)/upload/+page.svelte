@@ -3,23 +3,26 @@
 	import { useConfigQuery } from '#queries/config';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
-	import RecentUpload from './recent_upload.svelte';
-	import UploadShowcase from './upload_showcase.svelte';
 	import { toast } from 'svelte-sonner';
 	import { dev } from '$app/environment';
 	import { markdown_to_html } from '$lib/markdown/markdown';
 	import { Button } from '$lib/components/ui/button';
 	import { fly, fade } from 'svelte/transition';
+	import { onMount } from 'svelte';
+	import { CloudOff } from '@lucide/svelte';
+	import { UploadStage, isWhichUploadStage } from './enums';
 
-	import Stage1 from './stage_1.svelte';
-	import Stage2 from './stage_2.svelte';
-	import Stage3 from './stage_3.svelte';
+	// Stages
+	const { default: Stage1 } = await import('./stage_1.svelte');
+	const { default: Stage2 } = await import('./stage_2.svelte');
+	const { default: Stage3 } = await import('./stage_3.svelte');
+
+	// Modals
+	const { default: UploadShowcase } = await import('./upload_showcase.svelte');
+	const { default: RecentUpload } = await import('./recent_upload.svelte');
 
 	const { config: configData } = useConfigQuery();
-
-	type Stage = 1 | 2 | 3;
-	let stage = $state<Stage>(1);
-
+	let stage = $state<UploadStage>(UploadStage.Stage_1);
 	let dragActive = $state(false);
 	let dragOverCard = $state(false);
 	let dragOverZone = $state(false);
@@ -31,6 +34,9 @@
 		viewOnceLink: string;
 		isViewOnce: boolean;
 	} | null>(null);
+
+	// Prevent popstate from overriding initial mount state
+	let hasMounted = $state(false);
 
 	const detailsMarkdown = $derived(configData.data?.site_description ?? '');
 	let detailsHtml = $state('');
@@ -45,15 +51,14 @@
 
 	// Handle physical mouse back button (X1) to return from stage 2 to stage 1
 	const handleMouseBack = (e: MouseEvent) => {
-		// button 3 is the "Back" button on most mice
-		if (e.button === 3 && stage === 2) {
-			stage = 1;
+		if (e.button === 3 && stage === UploadStage.Stage_2) {
+			stage = UploadStage.Stage_1;
 			e.preventDefault();
 		}
 	};
 
 	const handleWindowDragEnter = (e: DragEvent) => {
-		if (stage === 3) return;
+		if (stage === UploadStage.Stage_3) return;
 		e.preventDefault();
 		dragCounter++;
 		e.dataTransfer && (e.dataTransfer.dropEffect = 'copy');
@@ -61,7 +66,7 @@
 	};
 
 	const handleWindowDragLeave = (e: DragEvent) => {
-		if (stage === 3) return;
+		if (stage === UploadStage.Stage_3) return;
 		dragCounter--;
 		if (dragCounter <= 0) {
 			dragActive = false;
@@ -70,13 +75,13 @@
 	};
 
 	const handleWindowDragOver = (e: DragEvent) => {
-		if (stage === 3) return;
+		if (stage === UploadStage.Stage_3) return;
 		e.preventDefault();
 		dragActive ||= true;
 	};
 
 	const handleWindowDrop = (e: DragEvent) => {
-		if (stage === 3) return;
+		if (stage === UploadStage.Stage_3) return;
 		e.preventDefault();
 		dragCounter = 0;
 		dragActive = false;
@@ -88,13 +93,13 @@
 	};
 
 	const handleCardDragEnter = (e: DragEvent) => {
-		if (stage === 3) return;
+		if (stage === UploadStage.Stage_3) return;
 		e.preventDefault();
 		dragOverCard = true;
 	};
 
 	const handleCardDragLeave = (e: DragEvent) => {
-		if (stage === 3) return;
+		if (stage === UploadStage.Stage_3) return;
 		const currentTarget = e.currentTarget as Node;
 		const relatedTarget = e.relatedTarget as Node;
 		if (currentTarget?.contains(relatedTarget)) return;
@@ -133,13 +138,11 @@
 			} else if (item.isDirectory) {
 				const dirReader = item.createReader();
 				const entries: any[] = [];
-
 				const readEntries = async () => {
 					try {
 						const result = await new Promise<any[]>((resolve, reject) => {
 							dirReader.readEntries(resolve, reject);
 						});
-
 						if (result.length > 0) {
 							entries.push(...result);
 							await readEntries();
@@ -148,9 +151,7 @@
 						console.error('Error reading directory:', err);
 					}
 				};
-
 				await readEntries();
-
 				const fileArrays = await Promise.all(
 					entries.map((entry) => traverseFileTree(entry, path + item.name + '/'))
 				);
@@ -163,11 +164,9 @@
 	};
 
 	const handlePaste = async (e: ClipboardEvent) => {
-		if (stage === 3) return;
-
+		if (stage === UploadStage.Stage_3) return;
 		const items = e.clipboardData?.items;
 		if (!items) return;
-
 		let hasFiles = false;
 		for (let i = 0; i < items.length; i++) {
 			if (items[i].kind === 'file') {
@@ -176,14 +175,11 @@
 			}
 		}
 		if (!hasFiles) return;
-
 		e.preventDefault();
-
 		const promises: Array<Promise<Array<File>>> = new Array();
 		for (let i = 0; i < items.length; i++) {
 			const item = items[i];
 			if (item.kind !== 'file') continue;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const entry = (item as any).webkitGetAsEntry ? (item as any).webkitGetAsEntry() : null;
 			if (entry) {
 				promises.push(traverseFileTree(entry));
@@ -192,7 +188,6 @@
 				if (file) promises.push(Promise.resolve([file]));
 			}
 		}
-
 		const fileArrays = await Promise.all(promises);
 		const newFiles = fileArrays.flat();
 		if (newFiles.length > 0) {
@@ -202,8 +197,12 @@
 
 	const onFilesSelected = (newFiles: File[]) => {
 		files = [...files, ...newFiles];
-		stage = 2;
-		window.history.pushState({ stage: 2 }, '');
+		dragCounter = 0;
+		dragActive = false;
+		dragOverZone = false;
+		dragOverCard = false;
+		stage = UploadStage.Stage_2;
+		window.history.pushState({ stage: UploadStage.Stage_2 }, '', window.location.href);
 	};
 
 	const onUploadComplete = (result: {
@@ -212,24 +211,45 @@
 		isViewOnce: boolean;
 	}) => {
 		uploadResult = result;
-		stage = 3;
-		window.history.pushState({ stage: 3 }, '');
+		stage = UploadStage.Stage_3;
+		window.history.pushState({ stage: UploadStage.Stage_3 }, '', window.location.href);
+	};
+
+	const resetState = (historyMode: 'push' | 'replace' = 'push') => {
+		files = [];
+		uploadResult = null;
+		stage = UploadStage.Stage_1;
+		dragCounter = 0;
+		dragActive = false;
+		dragOverZone = false;
+		dragOverCard = false;
+
+		const state = { stage: UploadStage.Stage_1 };
+		if (historyMode === 'replace') {
+			window.history.replaceState(state, '', window.location.href);
+		} else {
+			window.history.pushState(state, '', window.location.href);
+		}
 	};
 
 	const onReset = () => {
-		files = [];
-		uploadResult = null;
-		stage = 1;
-		window.history.pushState({ stage: 1 }, '');
+		resetState('push');
 	};
 
 	const handlePopState = (e: PopStateEvent) => {
-		if (e.state && typeof e.state.stage === 'number') {
-			stage = e.state.stage;
-		} else {
-			stage = 1;
-		}
+		// Ignore popstate until after initial microtask flush completes
+		if (!hasMounted) return;
+		stage = isWhichUploadStage(e.state?.stage) ? e.state.stage : UploadStage.Stage_1;
 	};
+
+	onMount(() => {
+		// Queue reset & mount guard in the microtask queue
+		// Runs immediately after current call stack, before next macrotask/repaint
+		queueMicrotask(() => {
+			resetState('replace');
+			hasMounted = true;
+		});
+	});
 </script>
 
 <svelte:window
@@ -318,7 +338,7 @@
 		dragOverZone && 'shadow-[0_0_60px_-10px_var(--primary)]'
 	]}
 	ondrop={(e) => {
-		if (stage === 3) return;
+		if (stage === UploadStage.Stage_3) return;
 		e.preventDefault();
 		e.stopPropagation();
 		dragCounter = 0;
@@ -342,7 +362,22 @@
 				<div class="col-span-1">
 					{@render rightColumnSkeleton()}
 				</div>
-			{:else if stage === 1}
+			{:else if configData.data?.allow_uploads === false}
+				<div
+					class="col-span-1 flex min-h-100 flex-col items-center justify-center p-4 text-center lg:col-span-2 lg:p-8"
+				>
+					<div class="mb-4 rounded-full bg-muted/50 p-4 lg:mb-6 lg:p-6">
+						<CloudOff class="h-10 w-10 text-muted-foreground lg:h-12 lg:w-12" />
+					</div>
+					<h2 class="mb-2 text-2xl font-bold md:text-xl lg:mb-4 lg:text-3xl">Uploads Disabled</h2>
+					<p
+						class="max-w-lg text-muted-foreground md:mb-4 md:text-sm lg:text-lg lg:leading-relaxed"
+					>
+						The administrator of this instance has temporarily disabled new file uploads. Existing
+						files can still be downloaded.
+					</p>
+				</div>
+			{:else if stage === UploadStage.Stage_1}
 				<div in:fly={{ x: -20, duration: 400 }}>
 					<Stage1
 						{onFilesSelected}
@@ -360,13 +395,13 @@
 						</div>
 					</ScrollArea>
 				</div>
-			{:else if stage === 2}
+			{:else if stage === UploadStage.Stage_2}
 				<div in:fly={{ x: 20, duration: 400 }}>
 					<Stage2
 						bind:files
 						onFilesUpdated={(newFiles) => (files = newFiles)}
 						{onUploadComplete}
-						onBack={() => (stage = 1)}
+						onBack={() => (stage = UploadStage.Stage_1)}
 						isDraggingOverZone={dragOverZone}
 						onZoneDragEnter={handleZoneDragEnter}
 						onZoneDragLeave={handleZoneDragLeave}
@@ -375,7 +410,7 @@
 				<div in:fade>
 					{@render encryptionInfo()}
 				</div>
-			{:else if stage === 3 && uploadResult}
+			{:else if stage === UploadStage.Stage_3 && uploadResult}
 				<div class="col-span-1 lg:col-span-2" in:fly={{ y: 20, duration: 400 }}>
 					<Stage3
 						finalLink={uploadResult.finalLink}
@@ -389,7 +424,9 @@
 	</CardContent>
 </Card>
 
-<UploadShowcase localUploadSize={stage === 2 ? files.reduce((s, f) => s + f.size, 0) : 0} />
+<UploadShowcase
+	localUploadSize={stage === UploadStage.Stage_2 ? files.reduce((s, f) => s + f.size, 0) : 0}
+/>
 
 {#if dev}
 	<div class="fixed bottom-4 left-4 z-50">

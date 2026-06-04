@@ -2,7 +2,7 @@
 icon: lucide/bot
 ---
 
-The project was not made with AI(or at least entirely).
+The project was not made with AI (or at least entirely).
 
 ## Backend
 
@@ -12,7 +12,8 @@ The backend part is fully written by me(since i excel at python and backend).
 
 The frontend part has had some helps around:
 
-- Animations that are on the page
+- Animations that are on the page.
+- Boilerplate for opengraph `+server.ts` generation.
 
 ## Github
 
@@ -20,4 +21,4 @@ I reviewed [one PR](https://github.com/chithi-dev/chithi/pull/39) with github co
 
 ## Docs
 
-The mermaid.js diagrams were written with AI assistance.
+The mermaid.js diagrams were written with AI assistance (then verified by me).

@@ -9,6 +9,7 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 # for an example.
 ENV UV_PYTHON_DOWNLOADS=0
 
+
 WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
@@ -17,6 +18,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-default-groups
+
+# Remove the python build folder
+RUN rm -rf /app/build
 
 # Remove the .egg-info file that are created from setuptools
 RUN find /app -type d -name '*.egg-info' -exec rm -rf {} +
@@ -27,8 +31,12 @@ FROM python:3.14-alpine
 # Python executable must be the same, e.g., using `python:3.11-slim-bookworm`
 # will fail.
 
-# Copy the application from the builder
-COPY --from=builder --chown=app:app /app /app
+## Create a non-root user and group for running the application
+RUN addgroup -S chithi \
+    && adduser -S -G chithi -h /app -s /bin/sh chithi
+
+# Copy the application from the builder and make it owned by the chithi user
+COPY --from=builder --chown=chithi:chithi /app /app
 
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
@@ -36,4 +44,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV HOST=127.0.0.1
 ENV PORT=8000
 EXPOSE 8000/udp 8000/tcp
+
+# Use a non-root user
+WORKDIR /app
+USER chithi
 

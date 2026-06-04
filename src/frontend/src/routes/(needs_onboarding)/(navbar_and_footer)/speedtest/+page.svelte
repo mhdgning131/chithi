@@ -15,11 +15,12 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
-	import { Play, RotateCw, Activity, ArrowDown, ArrowUp, Timer } from 'lucide-svelte';
+	import { Play, RotateCw, Activity, ArrowDown, ArrowUp, Timer } from '@lucide/svelte';
 	import { Api } from '#consts/backend';
 	import SpeedtestWorker from './speedtest.worker?worker';
-	import SpeedGauge from './SpeedGauge.svelte';
-	import SpeedGraph from './SpeedGraph.svelte';
+
+	const { default: SpeedGauge } = await import('./SpeedGauge.svelte');
+	const { default: SpeedGraph } = await import('./SpeedGraph.svelte');
 
 	let worker: Worker | undefined;
 	let status = $state<
@@ -99,9 +100,9 @@
 
 	// Chart Config
 	const chartConfig = {
-		latency: { label: 'Latency', color: 'var(--color-emerald-400)' },
-		download: { label: 'Download', color: 'var(--color-cyan-400)' },
-		upload: { label: 'Upload', color: 'var(--color-purple-500)' }
+		latency: { label: 'Latency', color: 'var(--chart-1)' },
+		download: { label: 'Download', color: 'var(--chart-2)' },
+		upload: { label: 'Upload', color: 'var(--chart-3)' }
 	} satisfies Chart.ChartConfig;
 </script>
 
@@ -145,7 +146,7 @@
 					class="flex flex-col items-center justify-center gap-4 rounded-xl border bg-muted/30 p-6 transition-colors"
 				>
 					<div class="flex items-center gap-2 font-semibold text-foreground">
-						<Activity class="h-4 w-4 text-emerald-400" />
+						<Activity class="h-4 w-4 text-chart-1" />
 						Latency
 					</div>
 					<div class="flex h-36 w-full items-center justify-center md:h-48 xl:h-56">
@@ -163,7 +164,7 @@
 					class="flex flex-col items-center justify-center gap-4 rounded-xl border bg-muted/30 p-6 transition-colors"
 				>
 					<div class="flex items-center gap-2 font-semibold text-foreground">
-						<ArrowDown class="h-4 w-4 text-cyan-400" />
+						<ArrowDown class="h-4 w-4 text-chart-2" />
 						Download Speed
 					</div>
 					<div class="relative w-48 xl:w-56">
@@ -180,7 +181,7 @@
 					class="flex flex-col items-center justify-center gap-4 rounded-xl border bg-muted/30 p-6 transition-colors"
 				>
 					<div class="flex items-center gap-2 font-semibold text-foreground">
-						<ArrowUp class="h-4 w-4 text-purple-500" />
+						<ArrowUp class="h-4 w-4 text-chart-3" />
 						Upload Speed
 					</div>
 					<div class="relative w-48 xl:w-56">

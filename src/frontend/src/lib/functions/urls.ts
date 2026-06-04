@@ -17,7 +17,10 @@ export function strip_trailing_slash(input: string) {
 export function validateRedirectUrl(url: string, origin: string): string {
 	try {
 		const parsed = new URL(url, origin);
+<<<<<<< HEAD
 		const redirectPath = parsed.pathname + parsed.search + parsed.hash;
+=======
+>>>>>>> b53647156e38c5570846351e03e07b17cdaf8bf1
 
 		if (parsed.origin !== origin) {
 			throw new Error('External redirects are not allowed.');
@@ -26,14 +29,22 @@ export function validateRedirectUrl(url: string, origin: string): string {
 		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
 			throw new Error('Invalid protocol.');
 		}
+<<<<<<< HEAD
 
 		if (redirectPath.startsWith('//')) {
 			throw new Error('Invalid redirect URL.');
 		}
 
 		return redirectPath;
+=======
+		return parsed.pathname + parsed.search + parsed.hash;
+>>>>>>> b53647156e38c5570846351e03e07b17cdaf8bf1
 	} catch (e) {
 		if (e instanceof Error) throw e;
 		throw new Error('Malformed redirect URL.');
 	}
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> b53647156e38c5570846351e03e07b17cdaf8bf1

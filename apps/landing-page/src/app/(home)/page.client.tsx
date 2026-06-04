@@ -19,7 +19,7 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { PUBLIC_INSTANCE_URL } from '@/consts/urls';
+import { DOCS_URL, PUBLIC_INSTANCE_URL } from '@/consts/urls';
 import 'aos/dist/aos.css';
 
 type Release = {
@@ -116,11 +116,15 @@ const steps = [
 export default function HomeClient({ release }: { release: Release }) {
     const [detectedArchLabel, setDetectedArchLabel] = useState<string>('');
     const [detectedOSLabel, setDetectedOSLabel] = useState<string>('');
+
     useEffect(() => {
         AOS.init({
             duration: 800,
             once: true,
         });
+    }, []);
+
+    useEffect(() => {
         const a = detectArch();
         if (a && a !== 'unknown') {
             setDetectedArchLabel(` (${a})`);
@@ -133,7 +137,7 @@ export default function HomeClient({ release }: { release: Release }) {
                     : o.charAt(0).toUpperCase() + o.slice(1);
             setDetectedOSLabel(` (${displayOS})`);
         }
-    }, []);
+    }, [detectOS, detectArch]);
 
     const [downloadOS, setDownloadOS] = useState<
         'auto' | 'windows' | 'macos' | 'linux'
@@ -145,20 +149,31 @@ export default function HomeClient({ release }: { release: Release }) {
     function detectOS(): 'windows' | 'macos' | 'linux' | 'unknown' {
         if (typeof navigator === 'undefined') return 'unknown';
         const ua =
-            navigator.userAgent || navigator.vendor || (window as any).opera;
-        const s = ua.toLowerCase();
-        if (s.includes('windows')) return 'windows';
+            navigator.userAgent ||
+            navigator.vendor ||
+            // @ts-expect-error: Opera exposes this
+            window.opera;
+        const tokenize = (s?: string) =>
+            new Set(
+                (s ?? '')
+                    .toLowerCase()
+                    .split(/[^a-z0-9]+/)
+                    .filter(Boolean),
+            );
+        const tokens = tokenize(ua);
+        if (tokens.has('windows')) return 'windows';
         if (
-            s.includes('mac') ||
-            s.includes('darwin') ||
-            s.includes('iphone') ||
-            s.includes('ipad')
+            tokens.has('mac') ||
+            tokens.has('macintosh') ||
+            tokens.has('darwin') ||
+            tokens.has('iphone') ||
+            tokens.has('ipad')
         )
             return 'macos';
         if (
-            s.includes('linux') ||
-            s.includes('ubuntu') ||
-            s.includes('android')
+            tokens.has('linux') ||
+            tokens.has('ubuntu') ||
+            tokens.has('android')
         )
             return 'linux';
         return 'unknown';
@@ -171,23 +186,27 @@ export default function HomeClient({ release }: { release: Release }) {
             navigator.platform ||
             ''
         ).toLowerCase();
+        const tokenize = (s?: string) =>
+            new Set(
+                (s ?? '')
+                    .toLowerCase()
+                    .split(/[^a-z0-9]+/)
+                    .filter(Boolean),
+            );
+        const tokens = tokenize(ua);
 
-        if (ua.includes('aarch64') || ua.includes('arm64')) return 'arm64';
-        if (
-            ua.includes('armv7') ||
-            ua.includes('armv7l') ||
-            ua.includes('armhf')
-        )
+        if (tokens.has('aarch64') || tokens.has('arm64')) return 'arm64';
+        if (tokens.has('armv7') || tokens.has('armv7l') || tokens.has('armhf'))
             return 'armv7';
         if (
-            ua.includes('amd64') ||
-            ua.includes('x86_64') ||
-            ua.includes('wow64') ||
-            ua.includes('win64') ||
-            ua.includes('x64')
+            tokens.has('amd64') ||
+            tokens.has('x86_64') ||
+            tokens.has('wow64') ||
+            tokens.has('win64') ||
+            tokens.has('x64')
         )
             return 'x86_64';
-        if (ua.includes('i386') || ua.includes('i686') || ua.includes('ia32'))
+        if (tokens.has('i386') || tokens.has('i686') || tokens.has('ia32'))
             return 'i386';
         return 'unknown';
     }
@@ -198,10 +217,30 @@ export default function HomeClient({ release }: { release: Release }) {
             name: string;
             browser_download_url: string;
         }[];
-        const name = (n: string) => n.toLowerCase();
+
+        const tokenize = (s?: string) =>
+            new Set(
+                (s ?? '')
+                    .toLowerCase()
+                    .split(/[^a-z0-9]+/)
+                    .filter(Boolean),
+            );
+
+        const normalizeKeyword = (k: string) =>
+            k.toLowerCase().replace(/^[.]/, '');
+
+        const matchesKeyword = (assetName: string, kw: string) => {
+            const tokens = tokenize(assetName);
+            const nk = normalizeKeyword(kw);
+            if (tokens.has(nk)) return true;
+            const parts = nk.split(/[-_.:]+/).filter(Boolean);
+            if (parts.some((p) => tokens.has(p))) return true;
+            return assetName.toLowerCase().includes(nk);
+        };
+
         const tryKeywords = (keywords: string[]) => {
             for (const k of keywords) {
-                const found = assets.find((a) => name(a.name).includes(k));
+                const found = assets.find((a) => matchesKeyword(a.name, k));
                 if (found) return found.browser_download_url;
             }
             return null;
@@ -225,7 +264,7 @@ export default function HomeClient({ release }: { release: Release }) {
 
         let arch: string | undefined = undefined;
         if (normalizedOs.includes(':')) {
-            const [o, a] = normalizedOs.split(':', 2);
+            const [_o, a] = normalizedOs.split(':', 2);
             arch = a;
         }
 
@@ -238,9 +277,9 @@ export default function HomeClient({ release }: { release: Release }) {
         // Try to match both OS and arch in the filename
         if (archKeywords.length && osKeywords.length) {
             const found = assets.find((a) => {
-                const n = name(a.name);
-                const ok = osKeywords.some((k) => n.includes(k));
-                const ak = archKeywords.some((k) => n.includes(k));
+                const n = a.name;
+                const ok = osKeywords.some((k) => matchesKeyword(n, k));
+                const ak = archKeywords.some((k) => matchesKeyword(n, k));
                 return ok && ak;
             });
             if (found) return found.browser_download_url;
@@ -292,20 +331,21 @@ export default function HomeClient({ release }: { release: Release }) {
 
                 <div className="max-w-4xl" data-aos="fade-up">
                     <div className="badge preset-outlined-surface-200-800 mb-8 rounded-full font-medium tracking-wide">
-                        End-to-End Encryption
+                        Open Source & Privacy-first
                     </div>
 
                     <h1 className="mb-6 font-bold text-5xl leading-tight tracking-tighter md:text-7xl lg:text-[5rem] lg:leading-[1.1]">
-                        Stop leaking files. <br />
+                        Encrypted file sharing you control. <br />
                         <span className="text-surface-600-400">
-                            Share securely.
+                            Self-hosted. Open-source.
                         </span>
                     </h1>
 
                     <p className="mx-auto mb-10 max-w-2xl font-light text-surface-600-400 text-xl leading-relaxed">
-                        Self-hostable, open-source, and encrypted by default.
-                        Built with RustFS for speed and FastAPI for reliability.
-                        Take back control of your data.
+                        Open-source, self-hostable, and encrypted by default.
+                        Built with RustFS for performance and FastAPI for
+                        reliability. Run it anywhere, inspect the code, and
+                        contribute.
                     </p>
 
                     <div className="flex flex-wrap items-center justify-center gap-4">
@@ -338,17 +378,19 @@ export default function HomeClient({ release }: { release: Release }) {
                     <h2 className="h2 mb-4 font-bold tracking-tight">
                         Download CLI binaries
                     </h2>
-                    <p className="font-light text-lg text-surface-600-400 leading-relaxed mb-6">
-                        Grab the latest Chithi CLI for your platform.
-                        Auto-detect tries to select the best binary for your
-                        device.
+                    <p className="mb-6 font-light text-lg text-surface-600-400 leading-relaxed">
+                        Official CLI releases are published on GitHub. Select
+                        your OS and architecture (or let us auto-detect), or
+                        build from source for maximum transparency.
                     </p>
 
                     <div className="flex items-center justify-center gap-3">
                         <select
                             value={downloadOS}
                             onChange={(e) =>
-                                setDownloadOS(e.target.value as any)
+                                setDownloadOS(
+                                    e.target.value as typeof downloadOS,
+                                )
                             }
                             className="select variant-form-material"
                         >
@@ -363,7 +405,9 @@ export default function HomeClient({ release }: { release: Release }) {
                         <select
                             value={downloadArch}
                             onChange={(e) =>
-                                setDownloadArch(e.target.value as any)
+                                setDownloadArch(
+                                    e.target.value as typeof downloadArch,
+                                )
                             }
                             className="select variant-form-material"
                         >
@@ -385,15 +429,15 @@ export default function HomeClient({ release }: { release: Release }) {
 
                         <Link
                             href="/download"
-                            className="font-medium text-surface-600-400 hover:text-white ml-2"
+                            className="ml-2 font-medium text-surface-600-400 hover:text-white"
                         >
                             Advanced downloads ↗
                         </Link>
                     </div>
 
-                    {release && (release as any).tag_name ? (
+                    {release?.tag_name ? (
                         <p className="mt-3 text-sm opacity-70">
-                            Latest: {(release as any).tag_name}
+                            Latest: {release.tag_name}
                         </p>
                     ) : null}
                 </div>
@@ -409,9 +453,9 @@ export default function HomeClient({ release }: { release: Release }) {
                         Self-host in minutes
                     </h2>
                     <p className="font-light text-lg text-surface-600-400 leading-relaxed">
-                        Simple, flexible deployment for your home lab or VPS.
-                        Spin up our Docker containers and take back ownership of
-                        your files.
+                        Deploy with Docker Compose, Helm, or build from source.
+                        Community-maintained examples and configs make it easy
+                        to run on a home server, VPS, or cloud.
                     </p>
                 </div>
 
@@ -591,9 +635,9 @@ export default function HomeClient({ release }: { release: Release }) {
                             Open Source & Fully Documented
                         </h2>
                         <p className="font-light text-lg text-surface-600-400 leading-relaxed">
-                            Detailed guides for self-hosting, contributing, and
-                            hacking on the API. Everything you need to run
-                            Chithi your way.
+                            Comprehensive docs, examples, and contribution
+                            guides - everything you need to run, customize, and
+                            contribute to Chithi.
                         </p>
                     </div>
                 </div>
@@ -758,7 +802,7 @@ export default function HomeClient({ release }: { release: Release }) {
                             Try a Public Instance
                         </Link>
                         <Link
-                            href="#docs"
+                            href={DOCS_URL}
                             className="font-medium text-surface-600-400 transition-colors hover:text-white"
                         >
                             Read the Docs &rarr;

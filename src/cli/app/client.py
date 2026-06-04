@@ -1,87 +1,105 @@
-"""HTTP client for communicating with the Chithi backend."""
-
 from pathlib import Path
-from typing import BinaryIO, cast
+from types import TracebackType
+from typing import Any, BinaryIO, Self, cast
 
-import requests
+import httpx2
 from tqdm import tqdm
 
-from app.settings import settings
 from app.builder.urls import UrlBuilder
+from app.settings import settings
 
 # Stream in 8 MiB chunks (matches S3 multipart minimum)
 STREAM_CHUNK_SIZE = 8 * 1024 * 1024
+
+DEFAULT_TIMEOUT = httpx2.Timeout(connect=30.0, read=None, write=None, pool=None)
 
 
 class _ProgressReader:
     """Wraps a file object and updates a tqdm bar on every read."""
 
-    def __init__(self, fp, pbar: tqdm):
+    def __init__(self, fp: BinaryIO, pbar: tqdm) -> None:
+        """Create a progress-aware wrapper around a binary file object."""
         self._fp = fp
         self._pbar = pbar
 
     def read(self, size: int = -1) -> bytes:
+        """Read bytes and advance the progress bar."""
         data = self._fp.read(size)
         if data:
             self._pbar.update(len(data))
         return data
 
     def seek(self, offset: int, whence: int = 0) -> int:
+        """Seek within the wrapped file object."""
         return self._fp.seek(offset, whence)
 
     def tell(self) -> int:
+        """Return the current stream position."""
         return self._fp.tell()
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
+        """Delegate missing attributes to the wrapped file object."""
         return getattr(self._fp, name)
 
 
 class Client:
+    """Async API client for uploads and downloads."""
+
     def __init__(self, urls: UrlBuilder):
         """
         Initialize with a UrlBuilder instance.
         Uses backend_url for API calls and frontend_url for headers.
         """
         self.urls = urls
-        self._session = requests.Session()
-
         # Set headers based on the frontend URL to avoid CORS/Security issues
-        self._session.headers.update(
-            {
+        self._session = httpx2.AsyncClient(
+            headers={
                 "Origin": self.urls.frontend_url.rstrip("/"),
                 "Referer": self.urls.frontend_url,
-            }
+                "Accept-Encoding": "br, zstd, gzip, deflate",
+            },
+            timeout=DEFAULT_TIMEOUT,
+            follow_redirects=True,
+            http2=True,
         )
 
-    def __enter__(self):
+    async def __aenter__(self) -> Self:
+        """Enter the async context manager."""
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Exit the async context manager and close the session."""
+        await self.close()
 
-    def close(self):
-        self._session.close()
+    async def close(self) -> None:
+        """Close the underlying HTTP session."""
+        await self._session.aclose()
 
     @classmethod
-    def resolve(cls, initial_url: str | None = None) -> "Client":
+    def resolve(cls, initial_url: str | None = None) -> Self:
         """Resolve URLs via UrlBuilder and return a Client."""
         urls = UrlBuilder.resolve(initial_url)
         return cls(urls)
 
-    def get_config(self) -> dict:
+    async def get_config(self) -> dict[str, Any]:
         """Fetch the server configuration using the backend URL."""
         url = self.urls.config_url()
-        response = self._session.get(url, timeout=30)
+        response = await self._session.get(url)
         response.raise_for_status()
-        return response.json()
+        return cast(dict[str, Any], response.json())
 
-    def upload_file(
+    async def upload_file(
         self,
         file_path: Path,
         filename: str | None = None,
         expire_after_n_download: int | None = None,
         expire_after: int | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Stream-upload *file_path* to the backend.
         Uses the resolved backend_url/upload endpoint.
@@ -92,9 +110,16 @@ class Client:
 
         # Fallback to server defaults if not set locally
         if expire_n is None or expire_t is None:
-            config = self.get_config()
-            expire_n = expire_n or config.get("default_number_of_downloads")
-            expire_t = expire_t or config.get("default_expiry")
+            config = await self.get_config()
+            if expire_n is None:
+                default_n = config.get("default_number_of_downloads", 1)
+                expire_n = int(default_n) if default_n is not None else 1
+            if expire_t is None:
+                default_t = config.get("default_expiry", 86400)
+                expire_t = int(default_t) if default_t is not None else 86400
+
+        assert expire_n is not None
+        assert expire_t is not None
 
         upload_url = self.urls.upload_url()
         display_name = filename or file_path.name
@@ -121,15 +146,7 @@ class Client:
                 "expire_after": str(expire_t),
             }
 
-            response = self._session.post(
-                upload_url,
-                data=data,
-                files=files,
-                timeout=(
-                    30,
-                    None,
-                ),  # 30s connect timeout, infinite read timeout for large files
-            )
+            response = await self._session.post(upload_url, data=data, files=files)
 
             # If the backend returned HTML (redirect/error), catch it here
             if "text/html" in response.headers.get("Content-Type", ""):
@@ -138,15 +155,13 @@ class Client:
                 )
 
             response.raise_for_status()
-            return response.json()
+            return cast(dict[str, Any], response.json())
 
-    def download_to_file(self, key: str, dest: Path) -> Path:
+    async def download_to_file(self, key: str, dest: Path) -> Path:
         """Stream-download a file using the backend URL."""
         download_url = f"{self.urls.download_url()}{key}"
 
-        with self._session.get(
-            download_url, stream=True, timeout=(30, None)
-        ) as response:
+        async with self._session.stream("GET", download_url) as response:
             # Validation: Catch frontend HTML responses before they hit the crypto layer
             content_type = response.headers.get("Content-Type", "")
             if "text/html" in content_type:
@@ -168,7 +183,7 @@ class Client:
                     leave=False,
                 ) as pbar,
             ):
-                for chunk in response.iter_content(STREAM_CHUNK_SIZE):
+                async for chunk in response.aiter_bytes(STREAM_CHUNK_SIZE):
                     f.write(chunk)
                     pbar.update(len(chunk))
         return dest

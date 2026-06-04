@@ -8,15 +8,20 @@
 		CardTitle
 	} from '$lib/components/ui/card';
 	import { page } from '$app/state';
-	import { ShieldCheck, ChevronLeft } from 'lucide-svelte';
+	import { ShieldCheck, ChevronLeft } from '@lucide/svelte';
 	import { fly } from 'svelte/transition';
 
 	import LoginForm from './login_form.svelte';
+<<<<<<< HEAD
 	import AnimatedGrid from '$lib/components/AnimatedGrid.svelte';
+=======
+	import FancyGrid from '$lib/components/FancyGrid.svelte';
+>>>>>>> b53647156e38c5570846351e03e07b17cdaf8bf1
 	import { validateRedirectUrl } from '$lib/functions/urls';
 
 	const nextUrl = $derived.by(() => {
 		const next = page.url.searchParams.get('next') ?? '/';
+<<<<<<< HEAD
 		try {
 			const url = validateRedirectUrl(next, page.url.origin);
 			if (url.startsWith('/admin')) {
@@ -24,6 +29,10 @@
 			}
 			return url;
 		} catch {
+=======
+		const url = validateRedirectUrl(next, page.url.origin);
+		if (url.startsWith('/admin')) {
+>>>>>>> b53647156e38c5570846351e03e07b17cdaf8bf1
 			return '/';
 		}
 	});
@@ -34,7 +43,7 @@
 <div
 	class="relative flex min-h-svh items-center justify-center overflow-hidden bg-card p-4 transition-colors duration-500"
 >
-	<AnimatedGrid />
+	<FancyGrid />
 
 	<a
 		href={nextUrl}

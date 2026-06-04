@@ -1,5 +1,5 @@
+import { octokit } from '$/providers/octokit.server';
 import HomeLayoutClient from './layout.client';
-import { octokit } from '@/server/providers/octokit.server';
 
 export default async function HomeLayout({
     children,

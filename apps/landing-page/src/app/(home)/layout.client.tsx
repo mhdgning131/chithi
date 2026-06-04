@@ -1,10 +1,10 @@
 'use client';
 
-import { AppBar } from '@skeletonlabs/skeleton-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { Star, GitBranch } from 'lucide-react';
 import { SiGithub } from '@icons-pack/react-simple-icons';
+import { AppBar } from '@skeletonlabs/skeleton-react';
+import { GitBranch, Star } from 'lucide-react';
+import Link from 'next/link';
+import Favicon from '@/icons/favicon';
 
 type GithubRepoData = {
     stargazerCount: number;
@@ -19,19 +19,47 @@ type Props = {
 };
 
 export function Navbar({ repo }: Props) {
+    const mapping = [
+        {
+            href: 'https://github.com/chithi-dev/chithi',
+            icon: {
+                component: SiGithub,
+                size: 16,
+            },
+            label: 'GitHub Repo',
+            value: repo?.latestRelease?.tagName,
+        },
+        {
+            href: 'https://github.com/chithi-dev/chithi/stargazers',
+            icon: {
+                component: Star,
+                size: 14,
+            },
+            label: 'Stars',
+            value: repo?.stargazerCount,
+        },
+        {
+            href: 'https://github.com/chithi-dev/chithi/network/members',
+            icon: {
+                component: GitBranch,
+                size: 14,
+            },
+            label: 'Forks',
+            value: repo?.forkCount,
+        },
+    ];
+
     return (
         <div className="sticky top-0 z-50 border-surface-200-800/50 border-b bg-transparent backdrop-blur-md">
             <AppBar className="mx-auto w-full max-w-7xl bg-transparent">
                 <AppBar.Toolbar className="grid-cols-[auto_1fr_auto]">
                     <AppBar.Lead>
-                        <Link href="/" className="flex items-center gap-3">
-                            <Image
-                                width={28}
-                                height={28}
-                                alt="logo"
-                                src="/favicon.svg"
-                                className="dark:invert-0"
-                            />
+                        <Link
+                            href="/"
+                            className="flex items-center gap-3"
+                            aria-label="Go to homepage"
+                        >
+                            <Favicon width={28} height={28} />
                             <span className="font-bold text-base tracking-tight">
                                 CHITHI
                             </span>
@@ -39,36 +67,26 @@ export function Navbar({ repo }: Props) {
                     </AppBar.Lead>
                     <AppBar.Headline></AppBar.Headline>
                     <AppBar.Trail>
-                        <a
-                            href="https://github.com/chithi-dev/chithi"
-                            className="btn btn-sm hover:preset-tonal flex items-center gap-2 rounded-full border border-surface-200-800 px-4 transition-colors"
-                        >
-                            <SiGithub size={16} />
-                            {repo?.latestRelease?.tagName && (
-                                <span className="opacity-50">
-                                    {repo.latestRelease.tagName}
-                                </span>
-                            )}
-                        </a>
-                        <a
-                            href="https://github.com/chithi-dev/chithi/stargazers"
-                            className="btn btn-sm ml-2 flex items-center gap-2 rounded-full border border-surface-200-800 px-3 transition-colors"
-                        >
-                            <Star size={14} />
-                            <span className="opacity-60 text-sm">
-                                {repo?.stargazerCount ?? 0}
-                            </span>
-                        </a>
-
-                        <a
-                            href="https://github.com/chithi-dev/chithi/network/members"
-                            className="btn btn-sm ml-2 flex items-center gap-2 rounded-full border border-surface-200-800 px-3 transition-colors"
-                        >
-                            <GitBranch size={14} />
-                            <span className="opacity-60 text-sm">
-                                {repo?.forkCount ?? 0}
-                            </span>
-                        </a>
+                        {mapping.map((item, i) => {
+                            const icon = item.icon;
+                            return (
+                                <a
+                                    key={i}
+                                    href={item.href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label={item.label}
+                                    className="btn btn-sm ml-2 flex items-center gap-2 rounded-full border border-surface-200-800 px-3 transition-all hover:bg-surface-200-800/40"
+                                >
+                                    <icon.component size={icon.size} />
+                                    {item.value != null && (
+                                        <span className="text-sm opacity-70">
+                                            {item.value}
+                                        </span>
+                                    )}
+                                </a>
+                            );
+                        })}
                     </AppBar.Trail>
                 </AppBar.Toolbar>
             </AppBar>

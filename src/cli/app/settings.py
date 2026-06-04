@@ -2,6 +2,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Environment-driven settings for the CLI."""
+
     INSTANCE_URL: str | None = None
     EXPIRE_AFTER_N_DOWNLOAD: int | None = None
     EXPIRE_AFTER: int | None = None
@@ -9,4 +11,4 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="CHITHI_")
 
 
-settings = Settings()
+settings: Settings = Settings()

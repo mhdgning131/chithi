@@ -18,7 +18,7 @@
 		FolderOpen,
 		FilePlay,
 		FileHeadphone
-	} from 'lucide-svelte';
+	} from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { fly, fade } from 'svelte/transition';
@@ -31,7 +31,7 @@
 	import { cubicOut } from 'svelte/easing';
 	import { Tween } from 'svelte/motion';
 	import { ZipReader, BlobReader, BlobWriter, type Entry } from '@zip.js/zip.js';
-	import { getMimeType } from '#functions/mime';
+	import { detectMimeFromBlob } from '#functions/mime';
 	import { createViewableText } from '$lib/functions/viewer';
 	import FileViewerOverlay from '$lib/components/FileViewerOverlay.svelte';
 
@@ -59,7 +59,7 @@
 
 	function getFileIcon(name: string) {
 		const n = name.toLowerCase();
-		if (n.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|bmp|avif)$/)) return ImageIcon;
+		if (n.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|bmp|avif|jxl|jxr|hdp|wdp)$/)) return ImageIcon;
 		if (n.match(/\.(mp4|webm|ogv|mov|mkv)$/)) return FilePlay;
 		if (n.match(/\.(mp3|wav|ogg|m4a|aac|flac)$/)) return FileHeadphone;
 		if (
@@ -220,17 +220,18 @@
 
 	async function openEntry(entry: Entry) {
 		if (entry.directory || !entry.getData) return;
-		const mime = getMimeType(entry.filename);
-		const rawBlob = await entry.getData(new BlobWriter(mime));
+		const rawBlob = await entry.getData(new BlobWriter('application/octet-stream'));
+		const detectedMime = await detectMimeFromBlob(rawBlob);
+		const viewBlob = detectedMime ? rawBlob.slice(0, rawBlob.size, detectedMime) : rawBlob;
 
-		const text = await createViewableText(rawBlob, entry.filename);
+		const text = await createViewableText(viewBlob, entry.filename, detectedMime);
 		if (text !== null) {
 			viewingFile = { text, url: null, filename: entry.filename };
 			setFileParam(entry.filename);
 			return;
 		}
 
-		const url = URL.createObjectURL(rawBlob);
+		const url = URL.createObjectURL(viewBlob);
 		viewingFile = { text: null, url, filename: entry.filename };
 		setFileParam(entry.filename);
 	}

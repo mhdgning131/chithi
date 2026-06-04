@@ -1,7 +1,8 @@
 from app.main import app
 
 
-def main():
+def main() -> None:
+    """Invoke the CLI application."""
     app()
 
 

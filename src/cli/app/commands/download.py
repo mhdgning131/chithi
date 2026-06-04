@@ -1,23 +1,33 @@
+import tempfile
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlparse
-import tempfile
-import typer
-from app import archive, client, crypto
+
+import async_typer as typer
+from rich.console import Console
+
+from app import client
 from app.builder.urls import UrlBuilder
+from app.helpers.archive import decompress
+from app.helpers.crypto import base64url_to_ikm, decrypt
 
-app = typer.Typer(help="Download encrypted files via Chithi.")
+app = typer.AsyncTyper(help="Download encrypted files via Chithi.")
+console: Console = Console()
+error_console: Console = Console(stderr=True)
 
 
-@app.command()
-def download(
+@app.async_command()
+async def download(
     link: Annotated[str, typer.Argument(help="URL or 'slug#key'")],
     instance_url: Annotated[str | None, typer.Option("--url", "-u")] = None,
     password: Annotated[str | None, typer.Option("--password", "-p")] = None,
     output: Annotated[Path, typer.Option("--output", "-o")] = Path("."),
-):
+) -> None:
+    """Download a file from the public instance."""
     try:
-        slug, key_secret, inferred_url = "", "", None
+        slug = ""
+        key_secret = ""
+        inferred_url: str | None = None
 
         # Parse the input link
         if "://" in link:
@@ -44,20 +54,19 @@ def download(
             tmp_zip = tmp_path / "decrypted.zip"
 
             # Download
-            with client.Client(urls) as c:
-                c.download_to_file(slug, tmp_dl)
+            async with client.Client(urls) as c:
+                await c.download_to_file(slug, tmp_dl)
 
             # Decrypt
-            ikm = crypto.base64url_to_ikm(key_secret)
-            crypto.decrypt(tmp_dl, tmp_zip, ikm=ikm, password=password)
+            ikm = base64url_to_ikm(key_secret)
+            decrypt(tmp_dl, tmp_zip, ikm=ikm, password=password)
 
             #  Decompress
             out_path = output.resolve()
-            archive.decompress(tmp_zip, out_path, password=password)
+            decompress(tmp_zip, out_path, password=password)
 
-            typer.secho(f"\n✓ Success! Extracted to {out_path}", fg=typer.colors.GREEN)
+            console.print(f"\n[green]✓ Success! Extracted to {out_path}[/green]")
 
     except Exception as exc:
-        typer.secho(f"✗ Download failed: {exc}", fg=typer.colors.RED, err=True)
+        error_console.print(f"[red]✗ Download failed: {exc}[/red]")
         raise typer.Exit(1)
-    # No 'finally' block needed! TemporaryDirectory cleans itself up automatically.

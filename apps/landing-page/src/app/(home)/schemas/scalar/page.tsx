@@ -3,7 +3,7 @@
 import '@scalar/api-reference-react/style.css';
 import { ApiReferenceReact } from '@scalar/api-reference-react';
 import { OPENAPI_SERVER } from '@/consts/urls';
-import { useApiSpec } from '../ApiSpecContext';
+import { useApiSpec } from '../context';
 
 export default function References() {
     const spec = useApiSpec();
